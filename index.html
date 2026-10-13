@@ -30,12 +30,17 @@ html,body{margin:0;background:var(--bg);color:var(--ink);
 .zh{font-family:"PingFang SC","Microsoft YaHei","Noto Sans SC","KaiTi",sans-serif}
 button{font:inherit;color:inherit;cursor:pointer}
 a{color:inherit}
-header.top{position:sticky;top:0;z-index:10;background:var(--red);color:#fff;
-  padding:calc(10px + env(safe-area-inset-top)) 16px 10px;display:flex;align-items:center;gap:10px}
+header.top{position:relative;background:var(--red);color:#fff;
+  padding:10px 16px 10px;display:flex;align-items:center;gap:10px}
 header.top .back{background:rgba(255,255,255,.18);border:0;border-radius:10px;padding:6px 10px;color:#fff}
 header.top h1{font-size:17px;margin:0;font-weight:600;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 header.top .icon{background:none;border:0;color:#fff;font-size:20px;padding:4px 6px}
 header.top #home{background:rgba(255,255,255,.18);border-radius:10px;padding:4px 10px;font-size:18px}
+.topwrap{position:sticky;top:0;z-index:10}
+.prog{background:#8f0b21;color:#fff;padding:calc(6px + env(safe-area-inset-top)) 16px 6px;display:flex;align-items:center;gap:10px;font-size:12px}
+.prog .track{flex:1;height:8px;background:rgba(255,255,255,.25);border-radius:4px;overflow:hidden}
+.prog .track i{display:block;height:100%;background:#ffd34d;border-radius:4px;transition:width .4s}
+.prog b{font-weight:600;white-space:nowrap}
 main{max-width:860px;margin:0 auto;padding:16px 14px 90px}
 .card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px;margin-bottom:14px}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
@@ -136,7 +141,10 @@ select,input[type=range]{font:inherit}
 </style>
 </head>
 <body>
+<div class="topwrap">
+<div class="prog" id="prog" title="Lessons started (any progress counts)"><b>课程进度</b><div class="track"><i id="progfill"></i></div><b id="progtxt">0 / 20</b></div>
 <header class="top"><button class="back hidden" id="back" onclick="history.back()">‹</button><button class="icon hidden" id="home" onclick="go('#/')" title="Home — all lessons" aria-label="Home">⌂</button><h1 id="title">HSK 3</h1><button class="icon" onclick="go('#/settings')" title="Settings">⚙︎</button></header>
+</div>
 <main id="app"></main>
 <div id="bar" class="stickybar hidden"></div>
 <script>
@@ -211,7 +219,10 @@ function chapterProgress(n){
   const done = keys.reduce((a, k) => a + (b[k] ?? 0), 0);
   return Math.round(done / keys.length);
 }
-function setBest(n, k, pct){ S.best[n] ??= {}; S.best[n][k] = Math.max(S.best[n][k] ?? 0, pct); save(); }
+function setBest(n, k, pct){ S.best[n] ??= {}; S.best[n][k] = Math.max(S.best[n][k] ?? 0, pct); save(); updateProg(); }
+function updateProg(){ const done = studiedChapters().length;
+  const f = document.getElementById('progfill'); if (!f) return;
+  f.style.width = (done / DATA.length * 100) + '%'; document.getElementById('progtxt').textContent = `${done} / ${DATA.length} 课`; }
 function pill(p){ if (p == null) return '<span class="pill">未做</span>'; return `<span class="pill ${p >= 80 ? 'ok' : 'mid'}">${p}%</span>`; }
 const srcOf = m => m.src || 'ex';
 function addMistake(n, k, i, src = 'ex'){ if (!S.mistakes.some(m => m.n == n && m.k == k && m.i == i && srcOf(m) === src)){ S.mistakes.push(src === 'ex' ? {n, k, i} : {n, k, i, src}); save(); } }
@@ -223,7 +234,7 @@ const wid = (n, w) => n + '|' + w;
 function srsGrade(n, w, ok){
   const id = wid(n, w); const r = S.srs[id] || {b: 0, due: 0};
   r.b = ok ? Math.min(r.b + 1, BOX_DAYS.length - 1) : 1;
-  r.due = Date.now() + BOX_DAYS[r.b] * 864e5 - 36e5; S.srs[id] = r; save();
+  r.due = Date.now() + BOX_DAYS[r.b] * 864e5 - 36e5; S.srs[id] = r; save(); updateProg();
 }
 function allWords(){ return DATA.flatMap(c => c.vocab.map(v => ({...v, n: c.n}))); }
 function dueWords(){ const now = Date.now(); return allWords().filter(v => { const r = S.srs[wid(v.n, v.w)]; return r && r.due <= now; }); }
@@ -233,7 +244,7 @@ function setTitle(t, back){ $('#title').textContent = t; $('#back').classList.to
 function setBar(html){ const b = $('#bar'); b.innerHTML = html || ''; b.classList.toggle('hidden', !html); }
 function route(){
   speechSynthesis?.cancel?.();
-  setBar(''); window.scrollTo(0, 0);
+  setBar(''); window.scrollTo(0, 0); updateProg();
   const p = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean);
   if (!p.length) return home();
   if (p[0] === 'ch'){ const n = +p[1]; const tab = p[2] || 'overview';
