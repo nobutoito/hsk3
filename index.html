@@ -160,7 +160,7 @@ const CH = {}; DATA.forEach(c => CH[c.n] = c);
 /* ---------- storage ---------- */
 const KEY = 'hsk3-app-v1';
 let S = JSON.parse(localStorage.getItem(KEY) || '{}');
-S.best ??= {}; S.srs ??= {}; S.stars ??= {}; S.mistakes ??= []; S.set ??= {rate: .8, en: false}; S.seen ??= {};
+S.best ??= {}; S.srs ??= {}; S.stars ??= {}; S.mistakes ??= []; S.set ??= {rate: .8, en: false}; S.set.exam ??= '2026-11-07'; S.seen ??= {};
 S.rvSeen ??= {}; S.rvLog ??= [];
 const save = () => localStorage.setItem(KEY, JSON.stringify(S));
 
@@ -268,10 +268,28 @@ function route(){
 window.addEventListener('hashchange', route);
 
 /* ---------- views ---------- */
+/* ---------- exam countdown ---------- */
+function examDays(){
+  const d = S.set.exam; if (!d || !/^\d{4}-\d{2}-\d{2}$/.test(d)) return null;
+  const [y, m, dd] = d.split('-').map(Number), t = new Date(); 
+  const today = Date.UTC(t.getFullYear(), t.getMonth(), t.getDate());
+  return Math.round((Date.UTC(y, m - 1, dd) - today) / 864e5);
+}
+function examCard(){
+  const n = examDays();
+  if (n === null) return `<a class="card exam" href="#/settings" style="text-decoration:none;display:block;margin-bottom:14px"><div class="small muted">📅 考试日期 Exam date not set — tap to add it in Settings</div></a>`;
+  const when = new Date(S.set.exam + 'T00:00').toLocaleDateString(undefined, {weekday: 'short', day: 'numeric', month: 'short', year: 'numeric'});
+  const big = n > 1 ? `${n}` : n === 1 ? '1' : n === 0 ? '今天' : '✓';
+  const lbl = n > 1 ? '天 days to the HSK 3 exam' : n === 1 ? '天 day to go — 明天考试！' : n === 0 ? 'Exam day — 加油！' : `Exam was ${-n} day${n === -1 ? '' : 's'} ago`;
+  return `<a class="card exam" href="#/settings" style="text-decoration:none;display:flex;align-items:center;gap:14px;margin-bottom:14px">
+    <div class="v" style="font-size:2.2em;line-height:1">${big}</div>
+    <div><div><b>${lbl}</b></div><div class="small muted">📅 ${esc(when)}${n > 0 ? ' · 加油！' : ''}</div></div></a>`;
+}
+
 function home(){
   setTitle('HSK 3 标准教程 · 练习', false);
   const due = dueWords().length, learned = Object.keys(S.srs).length;
-  $('#app').innerHTML = `
+  $('#app').innerHTML = examCard() + `
   <div class="kpi" style="margin-bottom:14px">
     <a class="card" href="#/review" style="text-decoration:none"><div class="v">${due}</div><div class="small muted">生词复习 words due</div></a>
     <a class="card" href="#/quiz" style="text-decoration:none"><div class="v">🎲</div><div class="small muted">随机复习 random review</div></a>
@@ -837,6 +855,9 @@ function settings(){
     <div class="row" style="margin-top:10px">声音 Voice <select id="voice"><option value="">Auto</option>${vs.map(v => `<option ${S.set.voice === v.name ? 'selected' : ''}>${esc(v.name)}</option>`).join('')}</select></div>
     ${vs.length ? '' : '<p class="small" style="color:var(--red)">No Chinese voice found. On Windows: Settings → Time &amp; language → Speech → add Chinese (Simplified). On iPhone: Settings → Accessibility → Spoken Content → Voices → Chinese.</p>'}
     <p class="small muted">Dialogues use a male/female voice for 男/女 where the device has both.</p></div>
+    <div class="card"><h3>考试 Exam</h3>
+    <div class="row">考试日期 Exam date <input type="date" id="exam" value="${esc(S.set.exam || '')}"> <button class="btn" id="examclr">Clear</button></div>
+    <p class="small muted" id="examinfo">${examDays() === null ? 'Set your HSK 3 exam date to show a countdown on the home page.' : `Countdown: ${examDays()} day(s).`}</p></div>
     <div class="card"><h3>进度 Progress</h3>
     <p class="small muted">Progress is stored in this browser only. Export it to move between devices.</p>
     <div class="row"><button class="btn" id="exp">导出 Export</button><button class="btn" id="imp">导入 Import</button><button class="btn" id="rst" style="color:var(--red)">重置 Reset all</button></div>
@@ -844,6 +865,9 @@ function settings(){
     <div class="card small muted">Content follows the lesson structure, vocabulary and grammar points of <i>HSK Standard Course 3</i> (BLCUP) and the section format of its workbook. Sentences and exercises are original practice material, not reproduced from the books.</div>`;
   $('#rate').oninput = e => { S.set.rate = +e.target.value; $('#rv').textContent = S.set.rate; save(); };
   $('#voice').onchange = e => { S.set.voice = e.target.value; save(); };
+  const examInfo = () => { const n = examDays(); $('#examinfo').textContent = n === null ? 'Set your HSK 3 exam date to show a countdown on the home page.' : `Saved — ${n} day(s) to go. Shown on the home page.`; };
+  $('#exam').onchange = e => { S.set.exam = e.target.value || ''; save(); examInfo(); };
+  $('#examclr').onclick = () => { S.set.exam = ''; $('#exam').value = ''; save(); examInfo(); };
   $('#exp').onclick = () => { const t = $('#io'); t.classList.remove('hidden'); t.value = JSON.stringify(S); t.select(); navigator.clipboard?.writeText(t.value); };
   $('#imp').onclick = () => { const t = $('#io'); if (t.classList.contains('hidden') || !t.value.trim()){ t.classList.remove('hidden'); t.value=''; t.placeholder = 'Paste exported progress here, then press Import again'; return; }
     try { S = JSON.parse(t.value); save(); alert('Imported.'); location.hash = '#/'; } catch { alert('Invalid data.'); } };
